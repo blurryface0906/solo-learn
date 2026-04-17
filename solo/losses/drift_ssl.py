@@ -1,0 +1,71 @@
+import torch
+import torch.nn.functional as F
+
+
+def drift_ssl_loss_func(
+        p: torch.Tensor,
+        z_target: torch.Tensor,
+        labels: torch.Tensor,
+        tau: float
+) -> tuple[torch.Tensor, float]:
+    """
+    Computes Tangent Drift SSL Loss.
+
+    Args:
+        p: [2B, D] L2-normalized predictor outputs
+        z_target: [2B, D] L2-normalized target embeddings (momentum net output)
+        labels: [2B] instance indices to identify positive pairs
+        tau: (float) Bandwidth parameter for the Gaussian Kernel
+
+    Returns:
+        loss: The MSE loss matched to the Extrinsic Spherical Gradient.
+        drift_mag: The average magnitude of the drift vector ||V||.
+    """
+    M, D = z_target.shape
+
+    # Ensure targets are detached (Stop-Gradient) and normalized
+    z_sg = F.normalize(z_target.detach(), dim=-1)
+    p = F.normalize(p, dim=-1)
+
+    # 1. Compute Masks (Section 2.1 from paper)
+    labels = labels.view(-1, 1)
+    is_same_image = torch.eq(labels, labels.T)
+    self_mask = torch.eye(M, dtype=torch.bool, device=z_sg.device)
+
+    pos_mask = is_same_image & ~self_mask
+    neg_mask = ~is_same_image
+
+    # 2. Kernel & Drift Computation
+    # Spherical Distance (Laplacian Kernel / Gaussian on Sphere)
+    sim_matrix = torch.matmul(z_sg, z_sg.T)
+    dist_matrix = torch.sqrt(torch.clamp(2.0 - 2.0 * sim_matrix, min=1e-8))
+
+    kernel_weights = torch.exp(-dist_matrix / tau)
+
+    # Positives Centroid
+    k_pos = kernel_weights.masked_fill(~pos_mask, 0.0)
+    w_pos = k_pos / torch.clamp(k_pos.sum(dim=1, keepdim=True), min=1e-8)
+    mu_pos = torch.matmul(w_pos, z_sg)
+
+    # Negatives Centroid
+    k_neg = kernel_weights.masked_fill(~neg_mask, 0.0)
+    w_neg = k_neg / torch.clamp(k_neg.sum(dim=1, keepdim=True), min=1e-8)
+    mu_neg = torch.matmul(w_neg, z_sg)
+
+    # V(i) = mu+(i) - mu-(i) (The Drift Vector)
+    V = mu_pos - mu_neg
+
+    # 3. Tangent-Space Projection
+    inner_product = (V * z_sg).sum(dim=1, keepdim=True)
+    V_perp = V - inner_product * z_sg
+
+    # Target for the predictor
+    target = z_sg + V_perp
+
+    # 4. MSE Loss
+    loss = F.mse_loss(p, target)
+
+    # Track Drift Magnitude ||V||
+    drift_mag = torch.norm(V, dim=1).mean().item()
+
+    return loss, drift_mag
