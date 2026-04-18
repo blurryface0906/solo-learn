@@ -24,10 +24,10 @@ data:
   train_path: "./datasets"
   val_path: "datasets/imagenet100/val"
   format: "image_folder"
-  num_workers: 0
+  num_workers: 3
 optimizer:
   name: "lars"
-  batch_size: 16
+  batch_size: 256
   lr: 0.4
   classifier_lr: 0.1
   weight_decay: 1e-4
