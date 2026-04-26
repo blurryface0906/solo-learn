@@ -45,9 +45,9 @@ auto_resume:
   enabled: True
 
 # overwrite PL stuff
-max_epochs: 1
-devices: 1
+max_epochs: 200
+devices: [0]
 sync_batchnorm: False
 accelerator: "cpu"
 strategy: "auto"
-precision: 32
+precision: 16-mixed
