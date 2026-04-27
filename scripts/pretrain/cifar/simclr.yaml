@@ -48,6 +48,6 @@ auto_resume:
 max_epochs: 200
 devices: [0]
 sync_batchnorm: False
-accelerator: "cpu"
+accelerator: "gpu"
 strategy: "auto"
 precision: 16-mixed
