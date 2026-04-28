@@ -118,8 +118,8 @@ class DriftSSL(BaseMomentumMethod):
         # Get current Tau from scheduler
         current_tau = self.tau_scheduler.get_tau(self.current_epoch)
 
-        # Calculate DriftSSL Loss
-        drift_loss, drift_mag = drift_ssl_loss_func(
+        # Calculate DriftSSL Loss and get detailed metrics
+        drift_loss, drift_metrics = drift_ssl_loss_func(
             p=p_all,
             z_target=z_target_all,
             labels=labels,
@@ -128,9 +128,12 @@ class DriftSSL(BaseMomentumMethod):
 
         metrics = {
             "train_drift_loss": drift_loss,
-            "train_drift_magnitude": drift_mag,
+            "train_drift_magnitude": drift_metrics["drift_mag"],
+            "train_drift_pos_magnitude": drift_metrics["drift_pos_mag"],
+            "train_drift_neg_magnitude": drift_metrics["drift_neg_mag"],
+            "train_effective_dimensionality": drift_metrics["eff_dim"],
             "train_tau": current_tau
         }
-        self.log_dict(metrics, on_epoch=True, sync_dist=True)
+        self.log_dict(metrics, on_step=True, on_epoch=True, sync_dist=True)
 
         return drift_loss + class_loss

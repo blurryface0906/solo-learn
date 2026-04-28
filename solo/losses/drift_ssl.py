@@ -19,7 +19,7 @@ def drift_ssl_loss_func(
 
     Returns:
         loss: The MSE loss matched to the Extrinsic Spherical Gradient.
-        drift_mag: The average magnitude of the drift vector ||V||.
+        metrics: Dictionary containing detailed telemetry (drift magnitudes and effective dim).
     """
     M, D = z_target.shape
 
@@ -27,7 +27,7 @@ def drift_ssl_loss_func(
     z_sg = F.normalize(z_target.detach(), dim=-1)
     p = F.normalize(p, dim=-1)
 
-    # 1. Compute Masks (Section 2.1 from paper)
+    # 1. Compute Masks
     labels = labels.view(-1, 1)
     is_same_image = torch.eq(labels, labels.T)
     self_mask = torch.eye(M, dtype=torch.bool, device=z_sg.device)
@@ -36,7 +36,6 @@ def drift_ssl_loss_func(
     neg_mask = ~is_same_image
 
     # 2. Kernel & Drift Computation
-    # Spherical Distance (Laplacian Kernel / Gaussian on Sphere)
     sim_matrix = torch.matmul(z_sg, z_sg.T)
     dist_matrix = torch.sqrt(torch.clamp(2.0 - 2.0 * sim_matrix, min=1e-8))
 
@@ -52,7 +51,11 @@ def drift_ssl_loss_func(
     w_neg = k_neg / torch.clamp(k_neg.sum(dim=1, keepdim=True), min=1e-8)
     mu_neg = torch.matmul(w_neg, z_sg)
 
-    # V(i) = mu+(i) - mu-(i) (The Drift Vector)
+    # Component Forces: Pull towards positive, Pull towards negative (for tracking)
+    v_pos = mu_pos - z_sg
+    v_neg = mu_neg - z_sg
+
+    # V(i) = mu+(i) - mu-(i) (The Total Drift Vector)
     V = mu_pos - mu_neg
 
     # 3. Tangent-Space Projection
@@ -65,7 +68,28 @@ def drift_ssl_loss_func(
     # 4. MSE Loss
     loss = F.mse_loss(p, target)
 
-    # Track Drift Magnitude ||V||
+    # 5. Calculate Advanced Metrics
+    # Drift Magnitudes
     drift_mag = torch.norm(V, dim=1).mean().item()
+    drift_pos_mag = torch.norm(v_pos, dim=1).mean().item()
+    drift_neg_mag = torch.norm(v_neg, dim=1).mean().item()
 
-    return loss, drift_mag
+    # Effective Dimensionality: ED = (Tr(C))^2 / Tr(C^2)
+    # 1. Center the features
+    z_centered = z_sg - z_sg.mean(dim=0, keepdim=True)
+    # 2. Compute covariance matrix C: [D, D] -> 256x256 (very fast on GPU)
+    C = torch.matmul(z_centered.T, z_centered) / (M - 1)
+    # 3. Traces
+    tr_C = torch.trace(C)
+    tr_C2 = torch.trace(torch.matmul(C, C))
+    # 4. Final ED
+    eff_dim = (tr_C ** 2 / torch.clamp(tr_C2, min=1e-8)).item()
+
+    metrics = {
+        "drift_mag": drift_mag,
+        "drift_pos_mag": drift_pos_mag,
+        "drift_neg_mag": drift_neg_mag,
+        "eff_dim": eff_dim
+    }
+
+    return loss, metrics
