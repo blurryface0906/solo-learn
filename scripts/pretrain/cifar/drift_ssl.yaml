@@ -29,7 +29,7 @@ data:
   train_path: "./datasets"
   val_path: "./datasets"
   format: "image_folder"
-  num_workers: 3
+  num_workers: 0
 optimizer:
   name: "lars"
   batch_size: 1024
