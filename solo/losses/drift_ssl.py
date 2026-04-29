@@ -6,7 +6,9 @@ def drift_ssl_loss_func(
         p: torch.Tensor,
         z_target: torch.Tensor,
         labels: torch.Tensor,
-        tau: float
+        tau: float,
+        adaptive_tau: bool = False,
+        tau_alpha: float = 0.7
 ) -> tuple[torch.Tensor, float]:
     """
     Computes Tangent Drift SSL Loss.
@@ -39,7 +41,17 @@ def drift_ssl_loss_func(
     sim_matrix = torch.matmul(z_sg, z_sg.T)
     dist_matrix = torch.sqrt(torch.clamp(2.0 - 2.0 * sim_matrix, min=1e-8))
 
-    kernel_weights = torch.exp(-dist_matrix / tau)
+    # Calculate effective distance (mean distance between positive pairs)
+    # Using detach() to prevent gradients from flowing through the tau calculation
+    d_eff = dist_matrix[pos_mask].detach().mean()
+
+    if adaptive_tau:
+        # \tau = \alpha * d_{eff}. Clamped for numerical stability
+        computed_tau = torch.clamp(tau_alpha * d_eff, min=0.02, max=2.0)
+    else:
+        computed_tau = tau
+
+    kernel_weights = torch.exp(-dist_matrix / computed_tau)
 
     # Positives Centroid
     k_pos = kernel_weights.masked_fill(~pos_mask, 0.0)
@@ -75,14 +87,10 @@ def drift_ssl_loss_func(
     drift_neg_mag = torch.norm(v_neg, dim=1).mean().item()
 
     # Effective Dimensionality: ED = (Tr(C))^2 / Tr(C^2)
-    # 1. Center the features
     z_centered = z_sg - z_sg.mean(dim=0, keepdim=True)
-    # 2. Compute covariance matrix C: [D, D] -> 256x256 (very fast on GPU)
     C = torch.matmul(z_centered.T, z_centered) / (M - 1)
-    # 3. Traces
     tr_C = torch.trace(C)
     tr_C2 = torch.trace(torch.matmul(C, C))
-    # 4. Final ED
     eff_dim = (tr_C ** 2 / torch.clamp(tr_C2, min=1e-8)).item()
 
     metrics = {
@@ -90,6 +98,8 @@ def drift_ssl_loss_func(
         "drift_pos_mag": drift_pos_mag,
         "drift_neg_mag": drift_neg_mag,
         "eff_dim": eff_dim
+        "d_eff": d_eff.item(),
+        "active_tau": computed_tau.item() if isinstance(computed_tau, torch.Tensor) else computed_tau
     }
 
     return loss, metrics

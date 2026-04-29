@@ -33,6 +33,8 @@ class DriftSSL(BaseMomentumMethod):
         pred_hidden_dim: int = cfg.method_kwargs.pred_hidden_dim
 
         # DriftSSL specific params
+        self.adaptive_tau: bool = cfg.method_kwargs.get("adaptive_tau", False)
+        self.tau_alpha: float = cfg.method_kwargs.get("tau_alpha", 0.7)
         self.tau_max: float = cfg.method_kwargs.get("tau_max", 0.5)
         self.tau_min: float = cfg.method_kwargs.get("tau_min", 0.1)
         self.tau_scheduler = TauScheduler(cfg.max_epochs, self.tau_max, self.tau_min)
@@ -123,7 +125,9 @@ class DriftSSL(BaseMomentumMethod):
             p=p_all,
             z_target=z_target_all,
             labels=labels,
-            tau=current_tau
+            tau=current_tau,
+            adaptive_tau=self.adaptive_tau,
+            tau_alpha=self.tau_alpha
         )
 
         metrics = {
@@ -132,7 +136,8 @@ class DriftSSL(BaseMomentumMethod):
             "train_drift_pos_magnitude": drift_metrics["drift_pos_mag"],
             "train_drift_neg_magnitude": drift_metrics["drift_neg_mag"],
             "train_effective_dimensionality": drift_metrics["eff_dim"],
-            "train_tau": current_tau
+            "train_d_eff": drift_metrics["d_eff"],
+            "train_active_tau": drift_metrics["active_tau"]
         }
         self.log_dict(metrics, on_step=True, on_epoch=True, sync_dist=True)
 
