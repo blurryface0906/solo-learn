@@ -1,6 +1,6 @@
 import os
-import torch
-torch.multiprocessing.set_sharing_strategy('file_system')
+# import torch
+# torch.multiprocessing.set_sharing_strategy('file_system')
 
 import omegaconf
 from omegaconf import OmegaConf

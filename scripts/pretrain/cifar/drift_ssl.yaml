@@ -29,11 +29,11 @@ data:
   train_path: "./datasets"
   val_path: "./datasets"
   format: "image_folder"
-  num_workers: 6
+  num_workers: 3
 optimizer:
   name: "lars"
-  batch_size: 1024
-  lr: 4.0
+  batch_size: 512
+  lr: 2.0
   classifier_lr: 0.1
   weight_decay: 1e-5
   kwargs:
