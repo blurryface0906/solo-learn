@@ -136,7 +136,7 @@ class SimCLR(BaseMethod):
         n_augs = self.num_large_crops + self.num_small_crops
         indexes = indexes.repeat(n_augs)
 
-        nce_loss = simclr_loss_func(
+        nce_loss, metrics_dict = simclr_loss_func(
             z,
             indexes=indexes,
             temperature=self.temperature,
