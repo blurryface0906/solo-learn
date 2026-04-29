@@ -142,6 +142,10 @@ class SimCLR(BaseMethod):
             temperature=self.temperature,
         )
 
-        self.log("train_nce_loss", nce_loss, on_epoch=True, sync_dist=True)
+        log_metrics = {
+            "train_nce_loss": nce_loss,
+            "train_effective_dimensionality": metrics_dict["eff_dim"],
+        }
+        self.log_dict(log_metrics, on_step=True, on_epoch=True, sync_dist=True)
 
         return nce_loss + class_loss

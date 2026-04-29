@@ -56,4 +56,17 @@ def simclr_loss_func(
     pos = torch.sum(sim * pos_mask, 1)
     neg = torch.sum(sim * neg_mask, 1)
     loss = -(torch.mean(torch.log(pos / (pos + neg))))
-    return loss
+
+    # Effective Dimensionality: ED = (Tr(C))^2 / Tr(C^2)
+    M = z.shape[0]
+    z_centered = z - z.mean(dim=0, keepdim=True)
+    C = torch.matmul(z_centered.T, z_centered) / (M - 1)
+
+    tr_C = torch.trace(C)
+    tr_C2 = torch.trace(torch.matmul(C, C))
+    eff_dim = (tr_C ** 2 / torch.clamp(tr_C2, min=1e-8)).item()
+
+    metrics = {
+        "eff_dim": eff_dim
+    }
+    return loss, metrics
