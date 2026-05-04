@@ -97,7 +97,7 @@ def drift_ssl_loss_func(
         "drift_mag": drift_mag,
         "drift_pos_mag": drift_pos_mag,
         "drift_neg_mag": drift_neg_mag,
-        "eff_dim": eff_dim
+        "eff_dim": eff_dim,
         "d_eff": d_eff.item(),
         "active_tau": computed_tau.item() if isinstance(computed_tau, torch.Tensor) else computed_tau
     }
