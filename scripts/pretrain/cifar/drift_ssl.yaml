@@ -11,7 +11,7 @@ hydra:
   run:
     dir: .
 
-name: "drift_ssl-cifar10_adaptive_tau" # change here for cifar100
+name: "drift_ssl-cifar10_adaptive_tau_v2" # change here for cifar100
 method: "drift_ssl"
 backbone:
   name: "resnet18"
