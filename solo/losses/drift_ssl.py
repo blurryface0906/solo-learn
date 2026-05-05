@@ -42,16 +42,15 @@ def drift_ssl_loss_func(
     dist_matrix = torch.sqrt(torch.clamp(2.0 - 2.0 * sim_matrix, min=1e-8))
 
     # Calculate effective distance (mean distance between positive pairs)
-    # Using detach() to prevent gradients from flowing through the tau calculation
     d_eff = dist_matrix[pos_mask].detach().mean()
 
     if adaptive_tau:
         # \tau = \alpha * d_{eff}. Clamped for numerical stability
-        computed_tau = torch.clamp(tau_alpha * d_eff, min=0.02, max=2.0)
+        computed_tau = torch.clamp((tau_alpha * d_eff)**2, min=0.005, max=1.0)
     else:
         computed_tau = tau
 
-    kernel_weights = torch.exp(-dist_matrix / computed_tau)
+    kernel_weights = torch.exp(sim_matrix / computed_tau)
 
     # Positives Centroid
     k_pos = kernel_weights.masked_fill(~pos_mask, 0.0)
